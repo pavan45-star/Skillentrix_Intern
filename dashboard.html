@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IP Intelligence Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Exo+2:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #050A0F;
+    --panel:     #080F18;
+    --panel2:    #0B1623;
+    --border:    #0F2840;
+    --border2:   #163352;
+    --cyan:      #00D4FF;
+    --cyan-dim:  #007A9A;
+    --green:     #00FF88;
+    --green-dim: #007A40;
+    --red:       #FF3355;
+    --red-dim:   #7A1528;
+    --yellow:    #FFB800;
+    --yellow-dim:#7A5800;
+    --text:      #C8E0F0;
+    --text-dim:  #4A6880;
+    --mono:      'Share Tech Mono', monospace;
+    --head:      'Rajdhani', sans-serif;
+    --body:      'Exo 2', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(0,212,255,0.06) 0%, transparent 70%),
+      linear-gradient(180deg, #050A0F 0%, #030609 100%);
+  }
+
+  /* SCANLINE EFFECT */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+    background: repeating-linear-gradient(0deg,
+      transparent, transparent 2px,
+      rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px);
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 28px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(8,15,24,0.95);
+    backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 14px;
+  }
+  .logo-icon {
+    width: 36px; height: 36px;
+    border: 2px solid var(--cyan);
+    border-radius: 6px;
+    display: grid; place-items: center;
+    position: relative;
+    box-shadow: 0 0 16px rgba(0,212,255,0.3);
+  }
+  .logo-icon::before {
+    content: '';
+    position: absolute; inset: 4px;
+    border: 1px solid rgba(0,212,255,0.4);
+    border-radius: 2px;
+    animation: pulse-border 2s ease-in-out infinite;
+  }
+  @keyframes pulse-border {
+    0%,100% { opacity:0.3; transform: scale(0.9); }
+    50%      { opacity:1;   transform: scale(1);   }
+  }
+  .logo-icon svg { width:18px; height:18px; fill:var(--cyan); }
+  .logo-text { font-family: var(--head); font-weight:700; font-size:18px; letter-spacing:2px; color:var(--cyan); }
+  .logo-sub  { font-family: var(--mono); font-size:10px; color:var(--text-dim); letter-spacing:3px; margin-top:1px; }
+
+  .header-right { display:flex; align-items:center; gap:20px; }
+  .mode-badge {
+    font-family: var(--mono); font-size:11px; padding:4px 10px;
+    border-radius:3px; letter-spacing:1px;
+  }
+  .mode-demo { background:rgba(255,184,0,0.1); border:1px solid var(--yellow); color:var(--yellow); }
+  .mode-live { background:rgba(0,255,136,0.1); border:1px solid var(--green); color:var(--green); animation: live-pulse 1.5s ease-in-out infinite; }
+  @keyframes live-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(0,255,136,0.4)} 50%{box-shadow:0 0 0 6px rgba(0,255,136,0)} }
+
+  .clock {
+    font-family: var(--mono); font-size:13px; color:var(--text-dim);
+  }
+
+  /* ── STAT CARDS ── */
+  .stat-bar {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .stat-card {
+    background: var(--panel);
+    padding: 14px 18px;
+    position: relative; overflow: hidden;
+  }
+  .stat-card::after {
+    content: '';
+    position: absolute; top:0; left:0; right:0; height:2px;
+  }
+  .stat-card.captured::after  { background: var(--cyan); }
+  .stat-card.checked::after   { background: #8888FF; }
+  .stat-card.malicious::after { background: var(--red); }
+  .stat-card.suspicious::after{ background: var(--yellow); }
+  .stat-card.safe::after      { background: var(--green); }
+  .stat-card.queued::after    { background: var(--text-dim); }
+
+  .stat-label { font-family:var(--mono); font-size:9px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase; }
+  .stat-value {
+    font-family: var(--head); font-weight:700; font-size:32px; line-height:1; margin:4px 0 2px;
+    transition: all 0.3s ease;
+  }
+  .stat-card.captured  .stat-value { color:var(--cyan); }
+  .stat-card.checked   .stat-value { color:#8888FF; }
+  .stat-card.malicious .stat-value { color:var(--red); }
+  .stat-card.suspicious .stat-value { color:var(--yellow); }
+  .stat-card.safe      .stat-value { color:var(--green); }
+  .stat-card.queued    .stat-value { color:var(--text-dim); }
+  .stat-sub { font-family:var(--mono); font-size:9px; color:var(--text-dim); }
+  .stat-value.bump { animation: bump 0.4s ease-out; }
+  @keyframes bump { 0%{transform:scale(1.2)} 100%{transform:scale(1)} }
+
+  /* ── MAIN GRID ── */
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    grid-template-rows: 1fr auto;
+    gap: 1px;
+    background: var(--border);
+    height: calc(100vh - 110px);
+  }
+
+  /* ── FEED PANEL ── */
+  .feed-panel {
+    background: var(--panel);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items:center; justify-content:space-between;
+    background: var(--panel2);
+    flex-shrink: 0;
+  }
+  .panel-title {
+    font-family: var(--head); font-weight:600; font-size:12px;
+    letter-spacing:3px; text-transform:uppercase; color:var(--cyan);
+  }
+  .live-dot {
+    width:7px; height:7px; border-radius:50%; background:var(--green);
+    box-shadow:0 0 8px var(--green);
+    animation: blink 1s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  .feed-table { flex:1; overflow-y:auto; }
+  .feed-table::-webkit-scrollbar { width:4px; }
+  .feed-table::-webkit-scrollbar-track { background:transparent; }
+  .feed-table::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+
+  table { width:100%; border-collapse:collapse; }
+  thead { position:sticky; top:0; z-index:10; }
+  th {
+    background: var(--panel2);
+    padding: 8px 12px;
+    font-family: var(--mono); font-size:9px; letter-spacing:2px;
+    color:var(--text-dim); text-align:left; font-weight:normal;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 9px 12px;
+    font-family: var(--mono); font-size:12px;
+    border-bottom: 1px solid rgba(15,40,64,0.4);
+    vertical-align: middle;
+  }
+  tr.new-row { animation: slideIn 0.5s ease-out; }
+  @keyframes slideIn {
+    from { opacity:0; transform:translateX(-20px); background:rgba(0,212,255,0.08); }
+    to   { opacity:1; transform:translateX(0); background:transparent; }
+  }
+  tr:hover td { background:rgba(0,212,255,0.03); }
+
+  .ip-cell { color:var(--cyan); letter-spacing:0.5px; }
+  .country-flag { font-size:14px; margin-right:4px; }
+  .isp-cell { color:var(--text-dim); font-size:11px; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .badge {
+    display:inline-flex; align-items:center; gap:5px;
+    padding:3px 8px; border-radius:3px;
+    font-family:var(--mono); font-size:10px; letter-spacing:1px; font-weight:600;
+  }
+  .badge-malicious  { background:rgba(255,51,85,0.15);  border:1px solid var(--red);    color:var(--red);    }
+  .badge-suspicious { background:rgba(255,184,0,0.12);  border:1px solid var(--yellow); color:var(--yellow); }
+  .badge-safe       { background:rgba(0,255,136,0.08);  border:1px solid var(--green);  color:var(--green);  }
+
+  .score-bar-wrap { display:flex; align-items:center; gap:6px; }
+  .score-bar { height:4px; border-radius:2px; min-width:4px; transition:width 0.5s ease; }
+  .score-num { font-size:10px; color:var(--text-dim); min-width:28px; }
+
+  .tor-badge {
+    background:rgba(255,51,85,0.2); border:1px solid rgba(255,51,85,0.5);
+    color:var(--red); font-size:9px; padding:1px 5px; border-radius:2px; margin-left:4px;
+  }
+
+  /* ── SIDE PANEL ── */
+  .side-panel {
+    background: var(--panel);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    grid-row: 1 / 3;
+  }
+
+  /* ── THREAT MAP (SVG world) ── */
+  .threat-map-section {
+    border-bottom: 1px solid var(--border);
+    flex-shrink:0;
+  }
+  #worldSvg { width:100%; height:140px; display:block; }
+
+  /* ── ALERT FEED ── */
+  .alerts-section {
+    flex:1; overflow:hidden; display:flex; flex-direction:column;
+  }
+  .alert-list { flex:1; overflow-y:auto; padding:0; }
+  .alert-list::-webkit-scrollbar { width:3px; }
+  .alert-list::-webkit-scrollbar-thumb { background:var(--border2); }
+
+  .alert-item {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(15,40,64,0.5);
+    animation: alertSlide 0.4s ease-out;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .alert-item:hover { background: rgba(0,212,255,0.04); }
+  @keyframes alertSlide { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+
+  .alert-ip   { font-family:var(--mono); font-size:12px; color:var(--cyan); }
+  .alert-meta { font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-top:2px; }
+  .alert-time { font-family:var(--mono); font-size:9px; color:var(--text-dim); float:right; }
+
+  /* ── BOTTOM STRIP ── */
+  .bottom-strip {
+    background: var(--panel);
+    padding: 8px 18px;
+    display: flex; align-items:center; gap:16px;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono); font-size:10px; color:var(--text-dim);
+    flex-shrink: 0;
+  }
+  .scroll-text {
+    overflow:hidden; flex:1;
+    white-space:nowrap;
+  }
+  .scroll-inner { display:inline-block; animation: marquee 25s linear infinite; }
+  @keyframes marquee { 0%{transform:translateX(100%)} 100%{transform:translateX(-100%)} }
+
+  /* ── FILTER BAR ── */
+  .filter-bar {
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex; gap:6px; flex-shrink:0;
+    background: var(--panel2);
+  }
+  .filter-btn {
+    font-family:var(--mono); font-size:10px; letter-spacing:1px;
+    padding:4px 10px; border-radius:3px; cursor:pointer; border:1px solid transparent;
+    background:transparent; color:var(--text-dim); transition:all 0.15s;
+  }
+  .filter-btn:hover { color:var(--text); }
+  .filter-btn.active-all  { border-color:var(--cyan);   color:var(--cyan);   background:rgba(0,212,255,0.08); }
+  .filter-btn.active-mal  { border-color:var(--red);    color:var(--red);    background:rgba(255,51,85,0.08); }
+  .filter-btn.active-sus  { border-color:var(--yellow); color:var(--yellow); background:rgba(255,184,0,0.08); }
+  .filter-btn.active-safe { border-color:var(--green);  color:var(--green);  background:rgba(0,255,136,0.08); }
+
+  /* ── PIE CHART ── */
+  .pie-section {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items:center; gap:14px;
+    flex-shrink:0;
+  }
+  #pieChart { flex-shrink:0; }
+  .pie-legend { flex:1; }
+  .legend-item {
+    display:flex; align-items:center; gap:6px; margin-bottom:5px;
+    font-family:var(--mono); font-size:10px; color:var(--text-dim);
+  }
+  .legend-dot { width:8px; height:8px; border-radius:2px; flex-shrink:0; }
+
+  /* ── GLOW EFFECTS ── */
+  .glow-red    { text-shadow: 0 0 12px rgba(255,51,85,0.8); }
+  .glow-green  { text-shadow: 0 0 12px rgba(0,255,136,0.8); }
+  .glow-yellow { text-shadow: 0 0 12px rgba(255,184,0,0.8); }
+  .glow-cyan   { text-shadow: 0 0 12px rgba(0,212,255,0.8); }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 4l6 2.67V11c0 3.8-2.66 7.35-6 8.53C8.66 18.35 6 14.8 6 11V7.67L12 5z"/></svg>
+    </div>
+    <div>
+      <div class="logo-text">NETWATCH</div>
+      <div class="logo-sub">REAL-TIME IP INTELLIGENCE</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div id="modeBadge" class="mode-badge mode-demo">◉ DEMO MODE</div>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<!-- STAT BAR -->
+<div class="stat-bar">
+  <div class="stat-card captured">
+    <div class="stat-label">Packets Captured</div>
+    <div class="stat-value" id="s-captured">0</div>
+    <div class="stat-sub">unique public IPs</div>
+  </div>
+  <div class="stat-card checked">
+    <div class="stat-label">IPs Analyzed</div>
+    <div class="stat-value" id="s-checked">0</div>
+    <div class="stat-sub">against threat intel</div>
+  </div>
+  <div class="stat-card malicious">
+    <div class="stat-label">Malicious</div>
+    <div class="stat-value glow-red" id="s-malicious">0</div>
+    <div class="stat-sub">block immediately</div>
+  </div>
+  <div class="stat-card suspicious">
+    <div class="stat-label">Suspicious</div>
+    <div class="stat-value glow-yellow" id="s-suspicious">0</div>
+    <div class="stat-sub">monitor & alert</div>
+  </div>
+  <div class="stat-card safe">
+    <div class="stat-label">Safe</div>
+    <div class="stat-value glow-green" id="s-safe">0</div>
+    <div class="stat-sub">verified clean</div>
+  </div>
+  <div class="stat-card queued">
+    <div class="stat-label">Queue</div>
+    <div class="stat-value" id="s-queued">0</div>
+    <div class="stat-sub">pending analysis</div>
+  </div>
+</div>
+
+<!-- MAIN GRID -->
+<div class="main">
+
+  <!-- LIVE FEED -->
+  <div class="feed-panel">
+    <div class="panel-header">
+      <span class="panel-title">Live Packet Feed</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim)" id="rowCount">0 IPs</span>
+        <div class="live-dot"></div>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <button class="filter-btn active-all" onclick="setFilter('ALL',this)">ALL</button>
+      <button class="filter-btn" onclick="setFilter('MALICIOUS',this)">🔴 MALICIOUS</button>
+      <button class="filter-btn" onclick="setFilter('SUSPICIOUS',this)">🟡 SUSPICIOUS</button>
+      <button class="filter-btn" onclick="setFilter('SAFE',this)">🟢 SAFE</button>
+    </div>
+    <div class="feed-table">
+      <table>
+        <thead>
+          <tr>
+            <th>IP ADDRESS</th>
+            <th>STATUS</th>
+            <th>ABUSE %</th>
+            <th>VT ENGINES</th>
+            <th>COUNTRY / ISP</th>
+            <th>TIME</th>
+          </tr>
+        </thead>
+        <tbody id="feedBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SIDE PANEL -->
+  <div class="side-panel">
+    <!-- PIE CHART -->
+    <div class="pie-section">
+      <canvas id="pieChart" width="80" height="80"></canvas>
+      <div class="pie-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div><span id="l-mal">Malicious: 0</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--yellow)"></div><span id="l-sus">Suspicious: 0</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div><span id="l-safe">Safe: 0</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--text-dim)"></div><span id="l-pending">Pending: 0</span></div>
+      </div>
+    </div>
+
+    <!-- WORLD MAP -->
+    <!--div class="threat-map-section">
+      <div class="panel-header">
+        <span class="panel-title">Threat Origins</span>
+      </div>
+      <svg id="worldSvg" viewBox="0 0 360 160">
+        <rect width="360" height="160" fill="#080F18"/>
+        <!-- Simplified world landmasses -->
+        <!--g fill="#0F2840" stroke="#163352" stroke-width="0.5">
+          <!-- North America -->
+          <!--path d="M30,40 L80,35 L95,50 L90,80 L70,95 L50,85 L35,70 Z"/>
+          <!-- South America -->
+          <!--path d="M65,100 L85,95 L88,130 L75,145 L60,140 L55,120 Z"/>
+          <!-- Europe -->
+          <!--path d="M145,30 L175,28 L180,45 L170,55 L148,52 L142,42 Z"/>
+          <!-- Africa -->
+          <!--path d="M150,60 L178,58 L182,100 L170,120 L152,118 L145,90 Z"/>
+          <!-- Asia -->
+          <!--path d="M185,25 L280,20 L285,65 L265,75 L240,70 L220,78 L200,72 L185,60 Z"/>
+          <!-- Australia -->
+          <!--path d="M255,100 L295,98 L298,120 L278,128 L255,122 Z"/>
+        </g>
+        <!-- Grid lines -->
+        <!--g stroke="#0F2840" stroke-width="0.3" opacity="0.5">
+          <line x1="0" y1="80" x2="360" y2="80"/>
+          <line x1="180" y1="0" x2="180" y2="160"/>
+        </g>
+        <g id="threatDots"></g>
+      </svg>
+    </div>
+
+    <!-- ALERTS -->
+    <div class="alerts-section">
+      <div class="panel-header">
+        <span class="panel-title">Threat Alerts</span>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--text-dim)">live</span>
+      </div>
+      <div class="alert-list" id="alertList">
+        <div style="padding:20px 14px;font-family:var(--mono);font-size:11px;color:var(--text-dim);text-align:center">
+          Waiting for threats...
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM STRIP -->
+  <div class="bottom-strip">
+    <span style="color:var(--cyan);flex-shrink:0">⬡ NETWATCH</span>
+    <div class="scroll-text">
+      <span class="scroll-inner" id="ticker">System initialised — monitoring live traffic — VirusTotal + AbuseIPDB threat intelligence active</span>
+    </div>
+    <span style="flex-shrink:0" id="uptime">UP: 00:00:00</span>
+  </div>
+</div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────────────
+const allRows   = [];   // all ip result objects
+let   activeFilter = 'ALL';
+let   startTime    = Date.now();
+
+// ── CLOCK ──────────────────────────────────────────────────────────
+function tick() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString('en-GB', { hour12: false });
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const h = String(Math.floor(elapsed/3600)).padStart(2,'0');
+  const m = String(Math.floor((elapsed%3600)/60)).padStart(2,'0');
+  const s = String(elapsed % 60).padStart(2,'0');
+  document.getElementById('uptime').textContent = `UP: ${h}:${m}:${s}`;
+}
+setInterval(tick, 1000); tick();
+
+// ── FILTER ─────────────────────────────────────────────────────────
+function setFilter(f, btn) {
+  activeFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.className = 'filter-btn';
+  });
+  const map = { ALL:'active-all', MALICIOUS:'active-mal', SUSPICIOUS:'active-sus', SAFE:'active-safe' };
+  btn.classList.add(map[f]);
+  rebuildTable();
+}
+
+// ── TABLE RENDER ───────────────────────────────────────────────────
+const COUNTRY_COORDS = {
+  US:[250,70], NL:[162,48], DE:[160,45], RU:[220,38], LT:[168,42],
+  AU:[275,115], GB:[152,43], CN:[260,55], FR:[155,47], CA:[60,50],
+  SE:[165,38], JP:[285,55], KR:[275,57], IN:[225,70], BR:[85,105],
+};
+
+function scoreColor(v, max=100) {
+  if (v >= 50)  return 'var(--red)';
+  if (v >= 10)  return 'var(--yellow)';
+  return 'var(--green)';
+}
+
+function formatTime(iso) {
+  try {
+    return new Date(iso).toLocaleTimeString('en-GB',{hour12:false});
+  } catch { return '??:??:??'; }
+}
+
+function buildRow(r, isNew=false) {
+  const tr = document.createElement('tr');
+  if (isNew) tr.classList.add('new-row');
+
+  const badgeCls = r.classification === 'MALICIOUS' ? 'badge-malicious' :
+                   r.classification === 'SUSPICIOUS' ? 'badge-suspicious' : 'badge-safe';
+  const icon = r.classification === 'MALICIOUS' ? '◈' :
+               r.classification === 'SUSPICIOUS' ? '◇' : '◉';
+
+  const abusePct = Number(r.abuse_score) || 0;
+  const barW     = Math.max(4, Math.round(abusePct * 0.8));
+  const barColor = scoreColor(abusePct);
+
+  const torBadge = r.is_tor ? '<span class="tor-badge">TOR</span>' : '';
+  const isp = (r.isp || r.as_owner || 'Unknown').substring(0, 22);
+
+  tr.innerHTML = `
+    <td class="ip-cell">${r.ip}${torBadge}</td>
+    <td><span class="badge ${badgeCls}">${icon} ${r.classification}</span></td>
+    <td>
+      <div class="score-bar-wrap">
+        <div class="score-bar" style="width:${barW}px;background:${barColor}"></div>
+        <span class="score-num">${abusePct}%</span>
+      </div>
+    </td>
+    <td style="color:${r.vt_malicious>0?'var(--red)':'var(--text-dim)'};font-size:12px">${r.vt_malicious} / ${(r.vt_malicious||0)+(r.vt_suspicious||0)+(r.harmless||0)+(r.undetected||0)}</td>
+    <td>
+      <div style="color:var(--text);font-size:11px">${r.country || '??'}</div>
+      <div class="isp-cell">${isp}</div>
+    </td>
+    <td style="color:var(--text-dim);font-size:10px">${formatTime(r.checked_at)}</td>
+  `;
+  return tr;
+}
+
+function rebuildTable() {
+  const tbody = document.getElementById('feedBody');
+  tbody.innerHTML = '';
+  const filtered = activeFilter === 'ALL' ? allRows :
+    allRows.filter(r => r.classification === activeFilter);
+  document.getElementById('rowCount').textContent = filtered.length + ' IPs';
+  filtered.forEach((r,i) => tbody.appendChild(buildRow(r, i===0 && filtered.length <= 3)));
+}
+
+// ── ALERT PANEL ────────────────────────────────────────────────────
+function addAlert(r) {
+  if (r.classification === 'SAFE') return;
+  const list = document.getElementById('alertList');
+  if (list.children[0]?.textContent?.includes('Waiting')) list.innerHTML = '';
+
+  const div = document.createElement('div');
+  div.className = 'alert-item';
+  const icon = r.classification === 'MALICIOUS' ? '🔴' : '🟡';
+  div.innerHTML = `
+    <span class="alert-time">${formatTime(r.checked_at)}</span>
+    <div class="alert-ip">${icon} ${r.ip} ${r.is_tor ? '<span class="tor-badge">TOR</span>' : ''}</div>
+    <div class="alert-meta">${r.country||'?'} • ${(r.isp||r.as_owner||'Unknown').substring(0,24)} • Abuse: ${r.abuse_score}%</div>
+  `;
+  list.insertBefore(div, list.firstChild);
+  while (list.children.length > 30) list.removeChild(list.lastChild);
+}
+
+// ── WORLD MAP DOTS ─────────────────────────────────────────────────
+const plotted = {};
+function plotThreat(r) {
+  const coords = COUNTRY_COORDS[r.country];
+  if (!coords || plotted[r.ip]) return;
+  plotted[r.ip] = true;
+
+  const [cx, cy] = coords;
+  const color = r.classification==='MALICIOUS' ? '#FF3355' :
+                r.classification==='SUSPICIOUS' ? '#FFB800' : '#00FF88';
+  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.innerHTML = `
+    <circle cx="${cx}" cy="${cy}" r="5" fill="${color}" opacity="0.15">
+      <animate attributeName="r" from="3" to="10" dur="1.5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" from="0.4" to="0" dur="1.5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="${cx}" cy="${cy}" r="3" fill="${color}" opacity="0.9"/>
+  `;
+  document.getElementById('threatDots').appendChild(g);
+}
+
+// ── PIE CHART ──────────────────────────────────────────────────────
+function drawPie(mal, sus, safe, pending) {
+  const canvas = document.getElementById('pieChart');
+  const ctx    = canvas.getContext('2d');
+  const cx=40, cy=40, r=35;
+  const total = mal+sus+safe+pending||1;
+  const slices = [
+    { v: mal,     c: '#FF3355' },
+    { v: sus,     c: '#FFB800' },
+    { v: safe,    c: '#00FF88' },
+    { v: pending, c: '#4A6880' },
+  ];
+  ctx.clearRect(0,0,80,80);
+  let angle = -Math.PI/2;
+  slices.forEach(s => {
+    if (!s.v) return;
+    const sweep = (s.v / total) * 2 * Math.PI;
+    ctx.beginPath();
+    ctx.moveTo(cx,cy);
+    ctx.arc(cx,cy,r,angle,angle+sweep);
+    ctx.closePath();
+    ctx.fillStyle = s.c;
+    ctx.fill();
+    angle += sweep;
+  });
+  // inner hole
+  ctx.beginPath();
+  ctx.arc(cx,cy,22,0,2*Math.PI);
+  ctx.fillStyle = '#080F18';
+  ctx.fill();
+  // center text
+  ctx.fillStyle = '#C8E0F0';
+  ctx.font = 'bold 14px Rajdhani';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(mal+sus+safe+pending, cx, cy);
+}
+
+// ── STATS UPDATE ───────────────────────────────────────────────────
+function updateStats(s) {
+  function set(id, val) {
+    const el = document.getElementById(id);
+    if (el && el.textContent !== String(val)) {
+      el.textContent = val;
+      el.classList.remove('bump');
+      void el.offsetWidth;
+      el.classList.add('bump');
+    }
+  }
+  set('s-captured',  s.total_captured || 0);
+  set('s-checked',   s.total_checked  || 0);
+  set('s-malicious', s.malicious      || 0);
+  set('s-suspicious',s.suspicious     || 0);
+  set('s-safe',      s.safe           || 0);
+  set('s-queued',    s.queued         || 0);
+
+  const pending = (s.total_captured||0) - (s.total_checked||0);
+  document.getElementById('l-mal').textContent     = `Malicious: ${s.malicious||0}`;
+  document.getElementById('l-sus').textContent     = `Suspicious: ${s.suspicious||0}`;
+  document.getElementById('l-safe').textContent    = `Safe: ${s.safe||0}`;
+  document.getElementById('l-pending').textContent = `Pending: ${Math.max(0,pending)}`;
+  drawPie(s.malicious||0, s.suspicious||0, s.safe||0, Math.max(0,pending));
+}
+
+// ── TICKER UPDATE ──────────────────────────────────────────────────
+let tickerItems = [];
+function updateTicker(r) {
+  tickerItems.unshift(`${r.ip} [${r.country}] → ${r.classification} (Abuse: ${r.abuse_score}%)`);
+  if (tickerItems.length > 10) tickerItems.pop();
+  document.getElementById('ticker').textContent = tickerItems.join('   ‖   ');
+}
+
+// ── SSE CONNECTION ─────────────────────────────────────────────────
+function connectSSE() {
+  const es = new EventSource('/stream');
+
+  es.onmessage = evt => {
+    try {
+      const msg = JSON.parse(evt.data);
+      if (msg.type === 'ip_result') {
+        const r = msg.data;
+        // Add to front if not already known
+        if (!allRows.find(x => x.ip === r.ip)) {
+          allRows.unshift(r);
+          if (allRows.length > 200) allRows.pop();
+          rebuildTable();
+          addAlert(r);
+          plotThreat(r);
+          updateTicker(r);
+        }
+      } else if (msg.type === 'stats') {
+        updateStats(msg.data);
+      }
+    } catch(e) {}
+  };
+
+  es.onerror = () => {
+    setTimeout(connectSSE, 3000);
+  };
+
+  // Check demo/live mode
+  fetch('/api/status').then(r=>r.json()).then(d => {
+    const badge = document.getElementById('modeBadge');
+    if (!d.demo_mode) {
+      badge.textContent = '◉ LIVE';
+      badge.className = 'mode-badge mode-live';
+    }
+  }).catch(()=>{});
+}
+
+// ── INIT ───────────────────────────────────────────────────────────
+// Load existing results first
+fetch('/api/recent').then(r=>r.json()).then(results => {
+  results.forEach(r => {
+    if (!allRows.find(x=>x.ip===r.ip)) {
+      allRows.push(r);
+      plotThreat(r);
+    }
+  });
+  rebuildTable();
+}).catch(()=>{});
+
+fetch('/api/stats').then(r=>r.json()).then(updateStats).catch(()=>{});
+
+connectSSE();
+drawPie(0,0,0,0);
+</script>
+</body>
+</html>
